@@ -1,0 +1,11 @@
+Name	Description	Number	Percentage of Population
+ALL	All participants	18217120	100
+wh.20	Age less than 20	587933	3.23
+wh.30	Age 20-29	3051694	16.75
+wh.40	Age 30-39	3299895	18.11
+wh.50	Age 40-49	3188474	17.5
+wh.60	Age 50-59	2622653	14.4
+wh.70	Age 60-69	2451157	13.46
+wh.80	Age 70-79	1512162	8.3
+wh.90	Age 80-89	702322	3.86
+wh.100	Age 90 and above	83968	0.46
