@@ -1,0 +1,475 @@
+##graph production is skipped
+
+samples<-read.table("subjects.txt",sep="\t", header=T)
+amounts<-read.table("amounts.txt", sep="\t", header=T)
+prop<-read.table("proportions.txt",sep="\t", header=T)
+rownames(amounts)<-amounts$X
+amounts<-amounts[,-1]
+rownames(prop)<-prop$X
+prop<-prop[,-1]
+
+
+library(EnvStats)
+library(MatchIt)
+library(caret)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(data.table)
+library(survival)
+library(pROC)
+
+all.purch<-c()
+age.pop.list <- c(3400,17400,18900,18200,15000,14000,8600,4000,500)
+#calculated from sample info
+
+for (o in 2:10){
+  set.seed(20)
+  ap <- round(rnormTrunc(age.pop.list[o-1]*24, min=0, mean=amounts[2,o],sd=amounts[3,o]),0)
+  print(length(ap))
+  all.purch <- append(all.purch,ap)
+}
+all.purch <- matrix(all.purch,ncol = 24,byrow = TRUE)
+all.purch <- as.data.frame(all.purch )
+## add the age group and ages at the end of the dataframe
+g <- c(rep("wh20",3400),rep("wh30",17400),rep("wh40",18900),
+       rep("wh50",18200),rep("wh60",15000),rep("wh70",14000),
+       rep("wh80",8600),rep("wh90",4000),rep("wh100",500))
+all.purch$age.group <- g
+
+## ages
+for (i in 1:nrow(all.purch)){
+  if (all.purch$age.group[i] == "wh20"){
+    all.purch$age[i] <- round(runif(1,min=18,max=19),0)
+  }else if (all.purch$age.group[i] == "wh30"){
+    all.purch$age[i] <- round(runif(1,min=20,max=29),0)
+  }else if (all.purch$age.group[i] == "wh40"){
+    all.purch$age[i] <- round(runif(1,min=30,max=39),0)
+  }else if (all.purch$age.group[i] == "wh50"){
+    all.purch$age[i] <- round(runif(1,min=40,max=49),0)
+  }else if (all.purch$age.group[i] == "wh60"){
+    all.purch$age[i] <- round(runif(1,min=50,max=59),0)
+  }else if (all.purch$age.group[i] == "wh70"){
+    all.purch$age[i] <- round(runif(1,min=60,max=69),0)
+  }else if (all.purch$age.group[i] == "wh80"){
+    all.purch$age[i] <- round(runif(1,min=70,max=79),0)
+  }else if (all.purch$age.group[i] == "wh90"){
+    all.purch$age[i] <- round(runif(1,min=80,max=89),0)
+  }else if (all.purch$age.group[i] == "wh100"){
+    all.purch$age[i] <- round(runif(1,min=90,max=100),0)
+  }
+}
+
+############################
+#simulated pain purch
+
+pain.purch <-as.data.frame(array(0,c(10000,24)))
+
+
+for(o in 2:10){
+  if(o==2){
+    set.seed(10)
+    select.0 <-sample(1:340, round(amounts[7,o]/amounts[1,o]*340,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(1:340)[-select.0] ##select.1 is those who got painkillers
+    print(head(select.0))
+    print(head(select.1))
+  } 
+  if(o==3){
+    set.seed(10)
+    select.0 <-sample(340:2080, round(amounts[7,o]/amounts[1,o]*1740,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(340:2080)[-select.0]
+  }
+  if(o==4){
+    set.seed(10)
+    select.0 <-sample(2080:3970, round(amounts[7,o]/amounts[1,o]*1890,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(2080:3970)[-select.0]
+  }
+  if(o==5){
+    set.seed(10)
+    select.0 <-sample(3970:5790, round(amounts[7,o]/amounts[1,o]*1820,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(3970:5790)[-select.0]
+  }
+  if(o==6){
+    set.seed(10)
+    select.0 <-sample(5790:7290, round(amounts[7,o]/amounts[1,o]*1500,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(5790:7290)[-select.0]
+  }
+  if(o==7){
+    set.seed(10)
+    select.0 <-sample(7290:8690, round(amounts[7,o]/amounts[1,o]*1400,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(7290:8690)[-select.0]
+  }
+  if(o==8){
+    set.seed(10)
+    select.0 <-sample(8690:9550, round(amounts[7,o]/amounts[1,o]*860,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(8690:9550)[-select.0]
+  }
+  if(o==9){
+    set.seed(10)
+    select.0 <-sample(9550:9950, round(amounts[7,o]/amounts[1,o]*400,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(9550:9950)[-select.0]
+  }
+  if(o==10){
+    set.seed(10)
+    select.0 <-sample(9950:10000, round(amounts[7,o]/amounts[1,o]*50,0))
+    pain.purch [select.0,]<-rep(0,24)
+    select.1<-rep(9950:10000)[-select.0]
+  }
+  y <- rnormTrunc(length(select.1), mean=amounts[5,o],sd=amounts[6,o],min=0) 
+  ## all those got painkiller  a mean and sd
+  ## so we have all pain killer buyer- over 24 month-purchase
+  m <- round(y*24,0)
+  ##
+  #allocate these number to different months
+  print(m[1:10])
+  for (j in 1:length(select.1)){
+    h <- m[j]
+    h
+    if (h == 0){
+      next
+    } 
+    for(i in 1:h) #we want to add 1 to a random month
+    { 
+      w <-sample(1:24,1)
+      while (all.purch [select.1[j],w]< pain.purch [select.1[j],w]){
+        w <-sample(1:24,1)
+      }
+      pain.purch [select.1[j],w] <- pain.purch [select.1[j],w] + 1
+    }
+  }
+}
+
+#####
+gav.purch <-as.data.frame(array(0,c(100000,24)))
+
+for(o in 2:10){
+  if(o==2){
+    set.seed(30)
+    select.0 <-sample(1:3400, round(amounts[10,o]/amounts[1,o]*3400,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(1:3400)[-select.0] ##select.1 is those who got painkillers
+    print(head(select.0))
+    print(head(select.1))
+  } 
+  if(o==3){
+    set.seed(30)
+    select.0 <-sample(3401:20800, round(amounts[10,o]/amounts[1,o]*17400,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(3401:20800)[-select.0]
+  }
+  if(o==4){
+    set.seed(30)
+    select.0 <-sample(20801:39700, round(amounts[10,o]/amounts[1,o]*18900,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(20801:39700)[-select.0]
+  }
+  if(o==5){
+    set.seed(30)
+    select.0 <-sample(39701:57900, round(amounts[10,o]/amounts[1,o]*18200,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(39701:57900)[-select.0]
+  }
+  if(o==6){
+    set.seed(30)
+    select.0 <-sample(57901:72900, round(amounts[10,o]/amounts[1,o]*15000,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(57901:72900)[-select.0]
+  }
+  if(o==7){
+    set.seed(30)
+    select.0 <-sample(72901:86900, round(amounts[10,o]/amounts[1,o]*14000,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(72901:86900)[-select.0]
+  }
+  if(o==8){
+    set.seed(30)
+    select.0 <-sample(86901:95500, round(amounts[10,o]/amounts[1,o]*8600,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(86901:95500)[-select.0]
+  }
+  if(o==9){
+    set.seed(30)
+    select.0 <-sample(95501:99500, round(amounts[10,o]/amounts[1,o]*4000,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(95501:99500)[-select.0]
+  }
+  if(o==10){
+    set.seed(30)
+    select.0 <-sample(99501:100000, round(amounts[10,o]/amounts[1,o]*500,0))
+    gav.purch[select.0,]<-rep(0,24)
+    select.1<-rep(99501:100000)[-select.0]
+  }
+  y <- rnormTrunc(length(select.1), mean=amounts[8,o],sd=amounts[9,o],min=0) 
+  m <- round(y*24,0)
+  ##
+  #allocate these number to different months
+  print(m[1:10])
+  for (j in 1:length(m)){
+    h <- m[j]
+    h
+    if (h == 0){
+      next
+    } 
+    for(i in 1:h) #we want to add 1 to a random month
+    { count5<-0
+    w <-sample(1:24,1)
+    while (gav.purch[select.1[j],w] + pain.purch[select.1[j],w] >= all.purch[select.1[j],w] ){
+      w <-sample(1:24,1)
+      count5<-count5+1
+      if(count5==25){
+        all.purch[select.1[j],w]<-all.purch[select.1[j],w]+1
+      }
+    }
+    gav.purch[select.1[j],w] <- gav.purch[select.1[j],w] + 1
+    }
+  }
+}
+
+gav.prop <- gav.purch/all.purch[,1:24]
+gav.prop[is.na(gav.prop)] <- 0
+pain.prop2 <- pain.purch/all.purch[,1:24]
+pain.prop2[is.na(pain.prop2)] <- 0
+
+
+gavpain.prop <- gav.prop + pain.prop2
+
+##############visualization
+
+##############Loop#####################
+
+
+#assigning cases according to the distribution
+patient.dis <- c(0.779,2.781,4.313,9.794,18.407,23.499,23.969,13.57,2.875)
+# extracted from online source
+patient.dis <- round(patient.dis/100*500,0)
+##convert the percentage to actual number - so e.g among the 500 cases we have 4 from the under-20 group
+
+res.1<-as.data.frame(array(NA,c(200,5)))
+colnames(res.1)<-c("true.positive","true.negative","false.positive","false.negative","auc")
+
+for(u in 1:200){
+  
+  case<- c()
+  case <- append(case,sample(1:3400,patient.dis[1]))
+  case <- append(case,sample(3401:20800,patient.dis[2]))
+  case <- append(case,sample(20801:39700,patient.dis[3]))
+  case <- append(case,sample(39701:57900,patient.dis[4]))
+  case <- append(case,sample(57901:72900,patient.dis[5]))
+  case <- append(case,sample(72901:86900,patient.dis[6]))
+  case <- append(case,sample(86901:95500,patient.dis[7]))
+  case <- append(case,sample(95501:99500,patient.dis[8]))
+  case <- append(case,sample(99501:100000,patient.dis[9]))
+  
+  pt.status<-as.data.frame(array(NA,c(100000,5)))
+  colnames(pt.status)<-c("ages","total.purch","case.status","match","index")
+  pt.status$ages <- all.purch$age
+  pt.status$total.purch <- rowSums(all.purch[,1:24])
+  pt.status$case.status <- 0
+  pt.status$case.status[case]<- 1
+  pt.status$match<-NA
+  pt.status$index <-1000000
+  
+  mt2 <-matchit(case.status~ ages, data = pt.status, ratio=1, method = "nearest", exact ="ages" ,replace=FALSE)
+  # depending on different matching condition
+  # mt2 <-matchit(case.status~ ages + total.purch, data = pt.status, ratio=1, method = "nearest", exact ="ages" ,replace=FALSE)
+
+  pt.status$match[sort(case)] <- mt2[["match.matrix"]]
+  pt.status$index[sort(case)] <- c(1:500)
+  pt.status$index[as.integer(mt2[["match.matrix"]])] <- c(1:500)
+  pt.status[pt.status$index<501 ,]
+  
+  case<-which(pt.status$case.status==1)
+  cont<-which(pt.status$case.status==0 & pt.status$index<501)
+  casecon<-c(case,cont)
+  pain.prop.iteration<-array(pain.prop2[,24])
+  #depending on the scenario and medication combination
+  #e.g. pain.prop.iteration<-array(rowSums(gav.prop[,19:24]))
+  #pain.prop.iteration<-array(rowSums(gavpain.prop[,19:24]!=0))
+  
+  pt.status.cc<-pt.status[pt.status$index<501,-2]
+  
+  for (i in 1:41)
+  {
+    count2<-0
+    Y<-1.0+(0.01*(i-1))
+    case<-which(pt.status$case.status==1)
+    pain.prop.iteration[case]<-array((pain.prop2[case,24])*Y)
+    #depending on the scenario and medication combination
+    #e.g. pain.prop.iteration<-array(rowSums(gav.prop[case,19:24]))*Y
+    #pain.prop.iteration<-array(round(rowSums(gavpain.prop[case,19:24]!=0))*Y)
+    for(j in 1:100000){
+      if(pain.prop.iteration[j]>1){
+        pain.prop.iteration[j]<-1
+      }
+      #if scenario is 3 months
+      #pain.prop.iteration[j]<-3
+      # is scenario is 6 months or frequency over 6 months
+      # pain.prop.iteration[j]<-6
+      # this is to make sure the increased number does not exceed the limit
+    }
+    
+    model1<-clogit(pt.status$case.status~pain.prop.iteration+strata(pt.status$index))
+    if(summary(model1)$coefficients[5]<0.05){ break }
+  }
+
+  #optimal threshold
+  pain.prop.iteration[case]<-array(round(rowSums(gavpain.prop[case,19:24]!=0))*Y)
+  cont.med<-mean(pain.prop.iteration[cont])
+  roc.table <- as.data.frame(array(NA,c(21,3)))
+  colnames(roc.table) <- c("multiplier","threshold","auc")
+  for(i in 1:21){
+    multiplier <- 1+(0.05*(i-1))
+    threshold <- cont.med*(multiplier)
+    
+    pain.prop.categorical <- as.numeric(pain.prop.iteration > threshold)
+    
+    roc1 <- roc(predictor = pain.prop.categorical[casecon],pt.status$case.status[casecon])
+    roc.table$auc[i] <- auc(roc1)
+    roc.table$multiplier[i] <- multiplier
+    roc.table$threshold[i] <- threshold 
+  }
+  
+  result2 <- roc.table %>%
+    top_n(1,auc)
+  
+  res.1$auc[u] <- result2[1,3]
+  optimal.threshold <- result2[1,2]
+  ref02 <- factor(pt.status$case.status[casecon])
+  data02 <- factor(pain.prop.categorical[casecon])
+  results3 <- table(data02, ref02)
+  res.1$true.negative[u] <- results3[1,1]
+  res.1$true.positive[u] <- results3[2,2]
+  res.1$false.negative[u] <- results3[1,2]
+  res.1$false.positive[u] <- results3[2,1]
+  res.1$multplier[u]<-Y
+  res.1[u,7:11]<-summary(model1)$coefficients[1:5]
+ 
+  }
+
+## manually go through all 26 predictors
+
+month24.both.age<-res.1
+month24.pain.age<-res.1
+month24.gav.age<-res.1
+month24.both.age.total.purch<-res.1
+month24.pain.age.total.purch<-res.1
+month24.gav.age.total.purch<-res.1
+
+month22.to.24.both.age<-res.1
+month22.to.24.pain.age<-res.1
+month22.to.24.gav.age<-res.1
+month22.to.24.both.age.total.purch<-res.1
+month22.to.24.pain.age.total.purch<-res.1
+month22.to.24.gav.age.total.purch<-res.1
+
+
+month19.to.24.both.age<-res.1
+month19.to.24.pain.age<-res.1
+month19.to.24.gav.age<-res.1
+month19.to.24.both.age.total.purch<-res.1
+month19.to.24.pain.age.total.purch<-res.1
+month19.to.24.gav.age.total.purch<-res.1
+
+six.month.pain.frq<-res.1
+six.month.pain.total.frq<-res.1
+six.month.gav.frq<-res.1
+six.month.gav.total.frq<-res.1
+six.month.either.frq<-res.1
+six.month.either.total.frq<-res.1
+six.month.simultaneous.frq<-res.1
+six.month.simultaneous.total.frq<-res.1
+
+#### machine learning
+
+
+##create matrix, matching does not matter
+pt.matrix<-as.data.frame(array(NA,c(100000,1)))
+colnames(pt.matrix)<-c("pain.prop.month24")
+
+pt.matrix$pain.prop.month24<-pain.prop2[,24]
+pt.matrix$pain.prop.3months<-(rowSums(pain.prop2[,22:24]))
+pt.matrix$pain.prop.6months<-(rowSums(pain.prop2[,19:24]))
+pt.matrix$gav.prop.month24<-gav.prop[,24]
+pt.matrix$gav.prop.3months<-(rowSums(gav.prop[,22:24]))
+pt.matrix$gav.prop.6months<-(rowSums(gav.prop[,19:24]))
+pt.matrix$gav.pain.prop.month24<-gavpain.prop[,24]
+pt.matrix$gav.pain.prop.3months<-(rowSums(gavpain.prop[,22:24]))
+pt.matrix$gav.pain.prop.6months<-(rowSums(gavpain.prop[,19:24]))
+pt.matrix$pain.frq.over.6.months <- rowSums(pain.prop2[,19:24]!=0)
+pt.matrix$gav.frq.over.6.months <- rowSums(gav.prop[,19:24]!=0)
+pt.matrix$either.gav.pain.frq.over.6.months <- rowSums(gavpain.prop[,19:24]!=0)
+pt.matrix$simultaneous.gav.pain.frq.over.6.months <- rowSums(gav.prop[,19:24]!=0)*rowSums(pain.prop2[,19:24]!=0)
+
+pt.matrix$cc<-0
+pt.matrix$cc[case]<-1
+##elevate the cases, multipliers are from the previous analysis
+pt.matrix$pain.prop.month24[case]<-pain.prop2[case,24]*1.34
+pt.matrix$pain.prop.3months[case]<-(rowSums(pain.prop2[case,22:24]))*1.22
+pt.matrix$pain.prop.6months[case]<-(rowSums(pain.prop2[case,19:24]))*1.22
+pt.matrix$gav.prop.month24[case]<-gav.prop[case,24]*1.27
+pt.matrix$gav.prop.3months[case]<-(rowSums(gav.prop[case,22:24]))*1.2
+pt.matrix$gav.prop.6months[case]<-(rowSums(gav.prop[case,19:24]))*1.15
+pt.matrix$gav.pain.prop.month24[case]<-gavpain.prop[case,24]*1.23
+pt.matrix$gav.pain.prop.3months[case]<-(rowSums(gavpain.prop[case,22:24]))*1.14
+pt.matrix$gav.pain.prop.6months[case]<-(rowSums(gavpain.prop[case,19:24]))*1.14
+pt.matrix$pain.frq.over.6.months[case] <- rowSums(pain.prop2[case,19:24]!=0)*1.1
+pt.matrix$gav.frq.over.6.months[case] <- rowSums(gav.prop[case,19:24]!=0)*1.04
+pt.matrix$either.gav.pain.frq.over.6.months[case] <- rowSums(gavpain.prop[case,19:24]!=0)*1.08
+pt.matrix$simultaneous.gav.pain.frq.over.6.months[case] <- rowSums(gav.prop[case,19:24]!=0)*rowSums(pain.prop2[case,19:24]!=0)*1.11
+
+#baseline
+pt.matrix$age<-all.purch$age
+pt.matrix$X<-sample(100000)
+
+case<-which(pt.matrix$cc==1)
+
+pt.matrix$risk.score <- c(rep(0,100000))
+nmb.cs<-c(19,15,45,126,138,153,98,42,62)
+nmb.cs<-nmb.cs/sum(nmb.cs)
+nmb.cs<-nmb.cs*(500)
+nmb.cs<-round(nmb.cs)
+
+risk.score.case <- c()
+for(i in 1:9){
+  risk.score.case <- c(risk.score.case,rep(i,nmb.cs[i]))
+}
+
+nmb.ct<-c(66,66,132,263,263,263,132,66,66)
+nmb.ct<-nmb.ct/sum(nmb.ct)
+nmb.ct<-nmb.ct*(100000-500)
+nmb.ct<-round(nmb.ct)
+
+risk.score.cont<- c()
+for(i in 1:9){
+  risk.score.cont <- c(risk.score.cont,rep(i,nmb.ct[i]))
+}
+sample1 <-sample(x =1:500,size = 500,replace = FALSE)
+for(i in 1:500){
+  k <- case[i]
+  pt.matrix$risk.score[k] <- risk.score.case[sample1[i]]
+}
+control<-c(1:100000)[-case]
+sample2 <-sample(x =1:99500,size = 99500,replace = FALSE)
+for(i in 1:99500){
+  k <- control[i]
+  pt.matrix$risk.score[k] <- risk.score.cont[sample2[i]]
+}
+
+feature.matrix <-pt.matrix[,-17]##remove case/control status column
+x<-as.matrix(feature.matrix)
+case.control.status<-pt.matrix$cc
+y<-case.control.status
+fit1<-glmnet(x, y, family="binomial")
+cvfit <- cv.glmnet(x, y)
+
+coef(cvfit, s = "lambda.min")
+
+
